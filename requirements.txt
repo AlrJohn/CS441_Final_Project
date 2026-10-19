@@ -1,0 +1,4 @@
+# The search and simulation logic use Python's standard library.
+# Agree on tested dependency versions before the final team experiments.
+streamlit
+matplotlib

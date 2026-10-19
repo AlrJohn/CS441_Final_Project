@@ -1,0 +1,37 @@
+{
+  "scenario_id": "toy_shelter",
+  "description": "Synthetic hand-checking example: variable device demands and usable AP capacity in Mbps; electrical draw in watts. All values and coverage sets are invented, not hardware measurements or documented application requirements. Capacity stays constant across each AP's settings; higher settings expand declared coverage only.",
+  "interval_hours": 1.0,
+  "users": [
+    {"user_id": "C1", "x": 3, "y": 2, "critical": true, "demand_mbps": 3},
+    {"user_id": "C2", "x": 8, "y": 2, "critical": true, "demand_mbps": 2},
+    {"user_id": "U1", "x": 2, "y": 5, "critical": false, "demand_mbps": 1},
+    {"user_id": "U2", "x": 9, "y": 5, "critical": false, "demand_mbps": 1}
+  ],
+  "access_points": [
+    {
+      "ap_id": "AP1", "x": 2, "y": 3,
+      "highest_setting": "high",
+      "settings": {
+        "low": {"electrical_watts": 3, "capacity_mbps": 5, "covered_user_ids": ["C1", "U1"]},
+        "high": {"electrical_watts": 5, "capacity_mbps": 5, "covered_user_ids": ["C1", "C2", "U1", "U2"]}
+      }
+    },
+    {
+      "ap_id": "AP2", "x": 9, "y": 3,
+      "highest_setting": "high",
+      "settings": {
+        "low": {"electrical_watts": 3, "capacity_mbps": 5, "covered_user_ids": ["C2", "U2"]},
+        "high": {"electrical_watts": 5, "capacity_mbps": 5, "covered_user_ids": ["C1", "C2", "U1", "U2"]}
+      }
+    },
+    {
+      "ap_id": "AP3", "x": 5, "y": 2,
+      "highest_setting": "high",
+      "settings": {
+        "low": {"electrical_watts": 2, "capacity_mbps": 5, "covered_user_ids": ["U1", "U2"]},
+        "high": {"electrical_watts": 6, "capacity_mbps": 5, "covered_user_ids": ["C1", "C2", "U1", "U2"]}
+      }
+    }
+  ]
+}
