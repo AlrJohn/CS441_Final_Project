@@ -1,7 +1,9 @@
 # Research ideas and our implementation
 
-The files contain original project-specific pseudocode, not published source
-code. 
+The files contain original project-specific implementation and pseudocode,
+not copied published source code. Simulation and configuration search are now
+implemented. The loader, experiment runner, and visualization functions remain
+pseudocode pending integration.
 
 | Source | Where it helps | What we are doing differently |
 | --- | --- | --- |
@@ -35,7 +37,17 @@ combinations; distinguish a heuristic failure from proven impossibility.
 
 When writing the report, keep the model limitations explicit: synthetic inputs,
 assumed working upstream connection, fixed AP sites, and no packet-level or
-interference guarantees. This scaffold supplies no empirical findings.
+interference guarantees. The toy correctness results are synthetic, not measured
+network findings or a general comparison of algorithm performance.
+
+## Deferred ideas (draft only, November 6, 2026)
+
+Possible later extensions are AP-health estimation with an HMM, Markov demand
+forecasting, Monte Carlo stress evaluation, and an MDP/reward-based controller.
+They remain exploratory notes from the November 1 discussion and are outside
+the active scope. No associated model fields, dependencies, or algorithms have
+been added. Finish and evaluate the existing all-on search/recovery application
+before considering any of these extensions.
 
 ## APA references and primary links
 

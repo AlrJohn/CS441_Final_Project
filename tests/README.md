@@ -1,8 +1,32 @@
-# Checks to implement as you write the code
+# Simulation/search tests and remaining checks
 
-Algorithms are still stubs. Turn these cases into standard-library `unittest`
-tests as you implement them. Check assignments, capacities, copies, and watts,
-not just status strings. There is no off state in the current project.
+`test_simulation.py` and `test_search.py` exercise the working simulation and
+configuration searches using standard-library `unittest`. From the repository root:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+There are 48 tests. The 27 simulation tests check assignments, capacities,
+fractional Mbps, input preservation,
+independent failures, watts/Wh, and recovery behavior. Forty seeded tiny cases
+compare the assignment checker's maximum count with exhaustive enumeration.
+One known-limitation case shows greedy recovery missing a feasible two-change
+combination; the test passes when that limitation is reported honestly.
+
+The JSON reader in the test file is fixture setup only, allowing tests to run
+without the production loader, UI, or third-party dependencies. It assumes the
+known test JSON schema; it does not replace full scenario validation.
+
+The 21 search tests add greedy feasibility, seeded neighbors and annealing,
+best/current separation, rejection bookkeeping, invalid parameter handling, and
+single-configuration behavior. Controlled neighbor proposals test rare acceptance
+branches; real simulation evaluations still determine service and energy.
+The seeded toy annealing run is compared with all eight possible ON configurations
+under each service policy. This proves a minimum for that fixture only.
+
+Loader validation, experiments, and UI checks still need implementation as those
+modules become functional. The following cases document the tested core behavior.
 
 The synthetic toy example uses `demand_mbps` values 3, 2, 1, and 1 for C1, C2,
 U1, and U2. Every AP has 5 Mbps modeled usable capacity at either setting.

@@ -12,8 +12,8 @@ Planned interface pseudocode:
     Plot the two results with devices in the same locations; exclude the failed AP.
     Show surviving watts before/after, not invented reconnection times or outage Wh.
 
-For now, main() provides a working landing page only. Wire in the above steps
-after the simulation and search functions are implemented and checked.
+For now, main() provides a landing page only. Simulation and configuration search
+are implemented; production loading, plotting, and interface integration remain.
 """
 
 
@@ -28,11 +28,15 @@ def main() -> None:
         "settings. After one AP fails, try reassignment first, then adjust "
         "surviving AP settings to restore critical-device service."
     )
-    st.info("Starter scaffold: the simulation and search still need to be implemented.")
+    st.info(
+        "Simulation and configuration search are implemented and tested. "
+        "Loading, plotting, and UI integration are still in progress."
+    )
     st.markdown(
-        "Start with `planner/models.py` and `planner/scenarios.py`, then implement "
-        "the service checker in `planner/simulation.py`. The search pseudocode "
-        "is in `planner/search.py`."
+        "Review the shared contract in `planner/models.py` and the working "
+        "simulation and search in `planner/simulation.py` and `planner/search.py`. "
+        "Run `python -m unittest discover -s tests -v` for all 48 core tests. "
+        "The next milestone is connecting the loader and results to this interface."
     )
 
 

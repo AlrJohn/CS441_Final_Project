@@ -6,10 +6,101 @@ CS441 group project: keep every functioning installed access point (AP) on,
 choose energy-efficient settings, and restore critical-device service after
 one AP fails by reassignment first and setting changes only when needed.
 
-This is a **coding scaffold**, not a completed planner. The data containers and
-the Streamlit landing page are provided. Algorithm functions contain descriptive
-pseudocode and raise `NotImplementedError` until you write them. No results have
-been generated.
+This project is **under development**. The shared models and simulation layer
+are implemented, including device assignment and greedy failure recovery.
+The all-high reference, greedy baseline, and simulated annealing are implemented.
+The production scenario loader, experiment runner, and plotting functions still
+contain pseudocode and raise `NotImplementedError`. Streamlit
+currently shows a landing page only. Synthetic correctness tests are available;
+no full search experiments or measured network results have been generated.
+
+## Working milestone: configuration search (November 6, 2026)
+
+`planner/search.py` now chooses normal AP settings automatically:
+
+- `all_high_configuration()` builds the reference and candidate starting plan.
+- `greedy()` repeatedly chooses the largest single-AP energy reduction that
+  preserves ALL normal-device service. Failure checks are separate for this baseline.
+- `make_neighbor()` changes one AP to another available ON setting, preserving
+  the original configuration. Both higher and lower moves are possible.
+- `simulated_annealing()` searches under normal-only, fixed-settings, or recovery
+  constraints. It uses a local random seed, records its best plan separately from
+  its current plan, and counts/cools after rejected proposals too.
+
+Run all 48 simulation/search tests from the repository root:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+The 21 new search tests cover seeded reproducibility, infeasible starts, valid
+neighbors, service constraints, uphill acceptance, preservation of the best plan,
+and stopping after rejected moves. The existing 27 simulation tests still pass.
+No third-party dependencies are needed to run this suite.
+
+The following are observed SYNTHETIC toy results, not hardware measurements or
+general performance claims. Annealing used seed 441, initial temperature 5 Wh,
+minimum 0.01 Wh, cooling rate 0.99, and a 500-proposal budget. All APs stay on.
+
+| Method/policy | Normal energy over 1 hour | Interpretation |
+| --- | --- | --- |
+| All-high reference | 16 Wh | All critical devices survive each failure at unchanged settings. |
+| Greedy normal baseline | 8 Wh | All devices served normally; separate checks pass with recovery, fail with fixed settings. |
+| Annealing, normal only | 8 Wh | Normal service checked during search. |
+| Annealing, fixed settings | 12 Wh | Each failure passes without changing surviving settings. |
+| Annealing, recovery | 8 Wh | Each failure passes after any needed greedy recovery. |
+
+For this eight-configuration fixture, the seeded annealing results match an
+enumerated minimum under each policy. This does not establish global optimality
+on other inputs or show an advantage over greedy; both reach 8 Wh here.
+
+The next milestone is connecting the loader and search results to the interface,
+then comparing larger varied scenarios through `experiments.py`. Those modules
+remain available for the other team members. HMMs and other temporal extensions
+remain draft ideas outside the active implementation; see `docs/research.md`.
+
+The discussion-post draft for this milestone is in
+[`docs/discussion-update-2026-11-06.md`](docs/discussion-update-2026-11-06.md).
+
+## Previous milestone: simulation (October 27, 2026)
+
+`planner/simulation.py` now provides:
+
+- `calculate_power()` and `calculate_energy()`: functioning-AP watts and normal Wh.
+- `assign_users()`: backtracking with Minimum Remaining Values (MRV), coverage,
+  unsplittable Mbps demands, capacity limits, and maximum-count partial service.
+- `recover_service()`: unchanged reassignment first, then greedy setting increases
+  scored by additional critical devices served per additional watt.
+- `evaluate_configuration()`: normal-only, fixed-settings, or recovery checks,
+  with every AP failure evaluated independently from the original configuration.
+
+The simulation assumes a valid `Scenario`. It checks configuration keys/settings
+and requested/failed IDs itself; complete scenario/JSON validation remains the
+loader owner's task. Results use the existing `models.py` contract unchanged.
+
+Run the correctness checks from the repository root with any supported Python:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+These tests use only the standard library; Streamlit and Matplotlib are not
+required. The test fixture reader constructs model objects from the toy JSON
+without depending on the production loader stub. It is not a second app loader.
+
+There are 27 tests, including 40 tiny seeded cases checked against exhaustive
+assignment enumeration. The toy all-low plan serves all four devices normally
+using 8 W (8 Wh over its one-hour interval). After AP1 fails, raising AP2 to high
+restores both critical devices; surviving draw goes from 5 to 7 W. After AP3
+fails, unchanged reassignment already serves both critical devices.
+
+Backtracking is intended for small cases and may become expensive as inputs
+grow. Greedy recovery is not complete: it can miss a valid combination when
+neither setting increase improves service alone. A regression test documents
+this limitation. Recovery failure is a method outcome, not proof of impossibility.
+
+The search functions described in the November 6 milestone now use this
+simulation to evaluate each candidate configuration.
 
 ## Project structure
 
@@ -31,6 +122,8 @@ CS441_Final_Project/
         research.md           # Sources and our proposed adaptations
     tests/
         README.md             # Hand-checkable cases to implement later
+        test_simulation.py    # Standard-library simulation correctness checks
+        test_search.py        # Search feasibility, randomness, and stopping checks
     results/
         .gitkeep              # Generated experiment files go here
 ```
@@ -111,7 +204,7 @@ depend on the modeled electrical draws actually differing across settings.
 
 `models.py` is the shared starting contract, not an algorithm file. Its classes
 document normal service, before/after recovery results, energy, and search output.
-Scenario validation is implemented in `scenarios.py`; dataclass type annotations
+Scenario validation belongs in the unfinished `scenarios.py`; dataclass type annotations
 do not validate input values at runtime. Algorithms must preserve the documented
 result invariants and use copies instead of changing shared inputs.
 
@@ -135,11 +228,11 @@ Agree on the schema now; use separate branches and pull requests for feature wor
 
 ## Recovery and what we measure
 
-`recover_service()` lives in `simulation.py`, next to the shared assignment
+`recover_service()` is implemented in `simulation.py`, next to the shared assignment
 checker. It first tries critical-device reassignment without setting changes.
-If needed, the proposed greedy recovery chooses positive service gains per
+If needed, greedy recovery chooses positive service gains per
 additional operating watt, using higher settings on surviving APs only.
-This is a suggested heuristic, not an exact or complete recovery solver.
+This is a heuristic, not an exact or complete recovery solver.
 
 Each single failure starts from the original normal plan. Recovery returns
 the unchanged and final service results, changed APs, and surviving watts
