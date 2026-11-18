@@ -1,4 +1,4 @@
 # The search and simulation logic use Python's standard library.
-# Agree on tested dependency versions before the final team experiments.
-streamlit
-matplotlib
+# Direct dependencies tested together on Python 3.12.14 (Python >= 3.11).
+streamlit==1.67.0
+matplotlib==3.11.2

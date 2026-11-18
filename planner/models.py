@@ -12,13 +12,36 @@ scenarios.py; assignments, recovery, and energy calculations belong in
 simulation.py. Function signatures elsewhere refer to these containers.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
 
 Configuration: TypeAlias = dict[str, str]  # Every installed AP -> an ON setting.
 Assignment: TypeAlias = dict[str, str]  # user ID -> exactly one serving AP ID
 FailurePolicy: TypeAlias = Literal["normal_only", "fixed_settings", "recovery"]
+
+
+@dataclass
+class SearchStep:
+    """One recorded search event for charts, replay, and downloadable traces.
+
+    Values use Wh for normal search and W for recovery. configuration is the
+    CURRENT plan after this event, copied when recorded. candidate_value and
+    feasible describe the proposed plan; best_value is None until a complete
+    feasible plan exists. Greedy histories record committed changes; annealing
+    histories record every proposal, including rejected ones. Step 0 is setup.
+    """
+
+    step: int
+    current_value: float
+    best_value: float | None
+    candidate_value: float
+    accepted: bool
+    feasible: bool
+    served_count: int
+    required_count: int
+    configuration: Configuration
+    temperature: float | None = None
 
 
 @dataclass
@@ -127,6 +150,8 @@ class FailureResult:
     changed_ap_ids: list[str]
     surviving_watts_before: float
     surviving_watts_after: float  # Excludes failed AP; compare with before.
+    history: list[SearchStep] = field(default_factory=list)
+    trials: int = 0  # Evaluated setting proposals, excluding unchanged reassignment.
 
 
 @dataclass
@@ -182,3 +207,32 @@ class SearchResult:
     evaluation: Evaluation | None
     steps: int
     message: str  # Explain a missing plan; do not claim global infeasibility.
+    history: list[SearchStep] = field(default_factory=list)
+
+
+@dataclass
+class RecoveryAnnealingSettings:
+    """Recovery search parameters; temperatures match the operating-W objective.
+
+    Normal search uses AnnealingSettings in Wh. Keeping a separate W container
+    avoids inventing a failure duration to combine power and energy units.
+    """
+
+    initial_temperature_watts: float
+    minimum_temperature_watts: float
+    cooling_rate: float
+    max_steps: int
+    seed: int
+
+
+@dataclass
+class RecoverySearchResult:
+    """Recovery outcome plus proposal count and an honest stopping explanation.
+
+    A partial outcome remains available in failure.final if no feasible seed
+    was found. The execution trace is stored in failure.history, in watts.
+    """
+
+    failure: FailureResult
+    steps: int
+    message: str

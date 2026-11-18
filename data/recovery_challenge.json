@@ -1,0 +1,88 @@
+{
+  "scenario_id": "recovery_challenge",
+  "description": "Synthetic combination challenge. If F fails from all-low, neither single power increase serves more critical devices, so greedy stalls. Increasing both A and B can restore service. Coverage, Mbps and watts are invented.",
+  "interval_hours": 1,
+  "users": [
+    {
+      "user_id": "X",
+      "x": 2,
+      "y": 2,
+      "critical": true,
+      "demand_mbps": 1
+    },
+    {
+      "user_id": "Y",
+      "x": 6,
+      "y": 2,
+      "critical": true,
+      "demand_mbps": 1
+    }
+  ],
+  "access_points": [
+    {
+      "ap_id": "A",
+      "x": 2,
+      "y": 4,
+      "highest_setting": "high",
+      "settings": {
+        "low": {
+          "electrical_watts": 1,
+          "capacity_mbps": 1,
+          "covered_user_ids": [
+            "X"
+          ]
+        },
+        "high": {
+          "electrical_watts": 2,
+          "capacity_mbps": 1,
+          "covered_user_ids": [
+            "X",
+            "Y"
+          ]
+        }
+      }
+    },
+    {
+      "ap_id": "B",
+      "x": 6,
+      "y": 4,
+      "highest_setting": "high",
+      "settings": {
+        "low": {
+          "electrical_watts": 1,
+          "capacity_mbps": 1,
+          "covered_user_ids": []
+        },
+        "high": {
+          "electrical_watts": 2,
+          "capacity_mbps": 1,
+          "covered_user_ids": [
+            "X"
+          ]
+        }
+      }
+    },
+    {
+      "ap_id": "F",
+      "x": 6,
+      "y": 0,
+      "highest_setting": "high",
+      "settings": {
+        "low": {
+          "electrical_watts": 1,
+          "capacity_mbps": 1,
+          "covered_user_ids": [
+            "Y"
+          ]
+        },
+        "high": {
+          "electrical_watts": 2,
+          "capacity_mbps": 1,
+          "covered_user_ids": [
+            "Y"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,9 +1,10 @@
 # Research ideas and our implementation
 
-The files contain original project-specific implementation and pseudocode,
-not copied published source code. Simulation and configuration search are now
-implemented. The loader, experiment runner, and visualization functions remain
-pseudocode pending integration.
+The files contain original project-specific implementations, not copied
+published source code. Simulation, normal configuration search, recovery
+annealing, JSON loading/validation, comparisons, plots, and the Streamlit
+workflow are implemented as of November 16, 2026. The examples are synthetic;
+they establish correctness cases, not measured networking performance.
 
 | Source | Where it helps | What we are doing differently |
 | --- | --- | --- |
@@ -34,6 +35,39 @@ eventual recovery can depend only on maximum installed capability. Explain this
 when interpreting results: a lower normal-energy plan may simply need more
 post-failure setting changes. The greedy recovery method can also miss feasible
 combinations; distinguish a heuristic failure from proven impossibility.
+
+## Recovery comparison implemented November 16, 2026
+
+`simulated_annealing_recovery()` tries unchanged reassignment first. If that
+fails, it checks a seed with every surviving AP at its highest setting, then
+searches for a lower-watt complete recovery. Each proposal changes one surviving
+AP; it can step down from the high seed but cannot go below that AP's original
+normal operating watts. Feasibility is a hard constraint. Temperature controls
+acceptance of extra watts, and current and best configurations remain separate.
+There is no standby activation, failed-AP repair, or device movement.
+
+The unchanged, greedy, and annealing recovery methods receive the same original
+normal configuration and failed AP. Report complete critical service before
+comparing surviving watts, additional watts, changed APs, trials, and runtime.
+Normal planning minimizes Wh over the input interval. Recovery minimizes W;
+an outage duration has not been introduced. Greedy may stop at its first complete
+recovery; annealing may spend more trials looking for a cheaper complete plan.
+Neither is guaranteed to find an optimal result.
+
+The combination challenge demonstrates a limitation of positive-gain greedy:
+two setting changes together restore service although neither helps alone.
+Annealing's checked all-high seed already restores service in this example;
+the result demonstrates the complete recovery workflow, not that stochastic
+search was needed to discover this particular combination. A failed all-high
+seed is also not a proof of impossibility for arbitrary non-nested settings.
+
+Normal annealing still uses greedy recovery for its `recovery` feasibility
+screen. Recovery annealing is compared separately on selected final plans;
+there is no annealing loop inside another annealing loop. Consequently a normal
+plan rejected by the greedy screen might be recoverable by the separate method.
+Use `normal_only` for an equal-normal-service energy comparison, and describe
+stronger-policy runs separately rather than attributing every energy difference
+to algorithm quality. Repeated-seed and varied-scenario evaluation is still needed.
 
 When writing the report, keep the model limitations explicit: synthetic inputs,
 assumed working upstream connection, fixed AP sites, and no packet-level or

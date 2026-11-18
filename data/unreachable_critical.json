@@ -1,0 +1,67 @@
+{
+  "scenario_id": "unreachable_critical",
+  "description": "Synthetic infeasible recovery example. Critical device C1 reaches only AP1, even at highest settings. Its failure cannot be repaired by the installed survivors. All parameters are invented.",
+  "interval_hours": 1,
+  "users": [
+    {
+      "user_id": "C1",
+      "x": 1,
+      "y": 2,
+      "critical": true,
+      "demand_mbps": 2
+    },
+    {
+      "user_id": "U1",
+      "x": 7,
+      "y": 2,
+      "critical": false,
+      "demand_mbps": 1
+    }
+  ],
+  "access_points": [
+    {
+      "ap_id": "AP1",
+      "x": 1,
+      "y": 4,
+      "highest_setting": "high",
+      "settings": {
+        "low": {
+          "electrical_watts": 3,
+          "capacity_mbps": 4,
+          "covered_user_ids": [
+            "C1"
+          ]
+        },
+        "high": {
+          "electrical_watts": 5,
+          "capacity_mbps": 4,
+          "covered_user_ids": [
+            "C1"
+          ]
+        }
+      }
+    },
+    {
+      "ap_id": "AP2",
+      "x": 7,
+      "y": 4,
+      "highest_setting": "high",
+      "settings": {
+        "low": {
+          "electrical_watts": 3,
+          "capacity_mbps": 4,
+          "covered_user_ids": [
+            "U1"
+          ]
+        },
+        "high": {
+          "electrical_watts": 5,
+          "capacity_mbps": 4,
+          "covered_user_ids": [
+            "U1"
+          ]
+        }
+      }
+    }
+  ]
+}

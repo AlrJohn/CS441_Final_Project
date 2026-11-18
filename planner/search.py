@@ -14,8 +14,26 @@ from random import Random
 
 from .models import (
     AnnealingSettings, Configuration, FailurePolicy, Scenario, SearchResult,
+    FailureResult, RecoveryAnnealingSettings, RecoverySearchResult, SearchStep,
 )
-from .simulation import evaluate_configuration
+from .simulation import assign_users, calculate_power, evaluate_configuration
+
+
+def _validate_annealing_parameters(initial, minimum, cooling_rate, max_steps, seed):
+    """Check shared annealing controls while keeping W/Wh in their own models."""
+    for name, value in (("initial temperature", initial), ("minimum temperature", minimum),
+                        ("cooling rate", cooling_rate)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
+            raise ValueError(f"{name} must be a finite number.")
+    if not initial > minimum > 0:
+        raise ValueError("Temperatures must satisfy initial > minimum > 0.")
+    if not 0 < cooling_rate < 1:
+        raise ValueError("cooling_rate must be between 0 and 1, excluding both ends.")
+    # bool inherits from int; True must not accidentally become a one-step budget.
+    if type(max_steps) is not int or max_steps <= 0:
+        raise ValueError("max_steps must be a positive integer.")
+    if type(seed) is not int:
+        raise ValueError("seed must be an integer.")
 
 
 def all_high_configuration(scenario: Scenario) -> Configuration:
@@ -69,6 +87,12 @@ def greedy(scenario: Scenario) -> SearchResult:
     for access_point in scenario.access_points:
         access_points_by_id[access_point.ap_id] = access_point
     steps = 0
+    history = [SearchStep(
+        0, current_evaluation.energy_wh, current_evaluation.energy_wh,
+        current_evaluation.energy_wh, True, True,
+        len(current_evaluation.normal.assignments), len(scenario.users),
+        current_configuration.copy(),
+    )]
 
     # Step 1: Look at every single-AP downgrade from the current configuration.
     while True:
@@ -105,6 +129,12 @@ def greedy(scenario: Scenario) -> SearchResult:
             break
         current_configuration = best_configuration
         current_evaluation = best_evaluation
+        history.append(SearchStep(
+            steps, current_evaluation.energy_wh, current_evaluation.energy_wh,
+            current_evaluation.energy_wh, True, True,
+            len(current_evaluation.normal.assignments), len(scenario.users),
+            current_configuration.copy(),
+        ))
 
     final_evaluation = evaluate_configuration(
         scenario, current_configuration, failure_policy="normal_only"
@@ -115,6 +145,7 @@ def greedy(scenario: Scenario) -> SearchResult:
         steps=steps,
         message="Greedy finished with a normal-service plan. "
                 "Failure recovery still needs a separate check; optimality is not guaranteed.",
+        history=history,
     )
 
 
@@ -195,24 +226,10 @@ def simulated_annealing(
     a plan for which a different recovery method might succeed.
     """
     # Step 1: Reject invalid settings instead of running an unbounded or NaN search.
-    numeric_settings = (
-        ("initial_temperature_wh", settings.initial_temperature_wh),
-        ("minimum_temperature_wh", settings.minimum_temperature_wh),
-        ("cooling_rate", settings.cooling_rate),
+    _validate_annealing_parameters(
+        settings.initial_temperature_wh, settings.minimum_temperature_wh,
+        settings.cooling_rate, settings.max_steps, settings.seed,
     )
-    for setting_name, value in numeric_settings:
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
-            raise ValueError(f"{setting_name} must be a finite number.")
-    if not settings.initial_temperature_wh > settings.minimum_temperature_wh > 0:
-        raise ValueError("Temperatures must satisfy initial > minimum > 0.")
-    if not 0 < settings.cooling_rate < 1:
-        raise ValueError("cooling_rate must be between 0 and 1, excluding both ends.")
-    # bool inherits from int in Python. Require actual integers so True is not
-    # accidentally treated as a one-step budget or a seed value.
-    if type(settings.max_steps) is not int or settings.max_steps <= 0:
-        raise ValueError("max_steps must be a positive integer.")
-    if type(settings.seed) is not int:
-        raise ValueError("seed must be an integer.")
 
     current_evaluation = evaluate_configuration(scenario, start, failure_policy)
     if not current_evaluation.feasible:
@@ -232,6 +249,13 @@ def simulated_annealing(
     temperature_wh = settings.initial_temperature_wh
     steps = 0
 
+    history = [SearchStep(
+        0, current_evaluation.energy_wh, best_evaluation.energy_wh,
+        current_evaluation.energy_wh, True, True,
+        len(current_evaluation.normal.assignments), len(scenario.users),
+        current_configuration.copy(), temperature_wh,
+    )]
+
     has_alternatives = False
     for access_point in scenario.access_points:
         if len(access_point.settings) > 1:
@@ -249,6 +273,7 @@ def simulated_annealing(
             scenario, candidate_configuration, failure_policy
         )
 
+        accept_candidate = False
         # Step 3: Service rules are hard constraints, even at high temperature.
         if candidate_evaluation.feasible:
             energy_change_wh = candidate_evaluation.energy_wh - current_evaluation.energy_wh
@@ -267,6 +292,12 @@ def simulated_annealing(
         # Step 4: Every proposal uses the budget and cools the search. Skipping
         # these updates on rejection could cause an endless loop on infeasible moves.
         steps += 1
+        history.append(SearchStep(
+            steps, current_evaluation.energy_wh, best_evaluation.energy_wh,
+            candidate_evaluation.energy_wh, accept_candidate, candidate_evaluation.feasible,
+            len(candidate_evaluation.normal.assignments), len(scenario.users),
+            current_configuration.copy(), temperature_wh,
+        ))
         temperature_wh *= settings.cooling_rate
 
     final_evaluation = evaluate_configuration(scenario, best_configuration, failure_policy)
@@ -276,4 +307,150 @@ def simulated_annealing(
         steps=steps,
         message="Annealing finished with its best encountered feasible plan. "
                 "A global optimum is not guaranteed.",
+        history=history,
+    )
+
+
+def simulated_annealing_recovery(
+    scenario: Scenario,
+    configuration: Configuration,
+    failed_ap_id: str,
+    settings: RecoveryAnnealingSettings,
+) -> RecoverySearchResult:
+    """Restore critical service, then minimize surviving operating watts.
+
+    First try unchanged reassignment, just like greedy recovery. If needed, seed
+    annealing with all surviving APs at their highest settings. Only complete
+    critical-service candidates are accepted. Neighbors may increase or decrease
+    from the seed, but never below an AP's original operating watts. The failed
+    AP remains unavailable and keeps its original entry; no AP is switched off.
+
+    Temperatures and the objective are W, not Wh. Returned history records setup
+    and every proposal. A failed all-high seed is reported honestly; with arbitrary
+    non-nested input settings it does not prove that no other recovery exists.
+    Greedy recovery is not used inside this search, keeping the methods separate.
+    """
+    _validate_annealing_parameters(
+        settings.initial_temperature_watts, settings.minimum_temperature_watts,
+        settings.cooling_rate, settings.max_steps, settings.seed,
+    )
+    # assign_users checks the configuration and failed ID. None is not a failure.
+    if failed_ap_id is None:
+        raise ValueError("Recovery requires an installed failed AP ID.")
+    critical_ids = set()
+    for user in scenario.users:
+        if user.critical:
+            critical_ids.add(user.user_id)
+    unchanged = assign_users(scenario, configuration, critical_ids, failed_ap_id)
+    watts_before = calculate_power(scenario, configuration, failed_ap_id)
+    history = [SearchStep(
+        0, watts_before, watts_before if unchanged.complete else None, watts_before,
+        True, unchanged.complete, len(unchanged.assignments), len(critical_ids),
+        configuration.copy(),
+    )]
+    if unchanged.complete:
+        failure = FailureResult(
+            unchanged, unchanged, configuration.copy(), False, [],
+            watts_before, watts_before, history,
+        )
+        return RecoverySearchResult(failure, 0, "Unchanged reassignment already serves every critical device.")
+
+    # Build the recovery search space once. Named settings are inputs; their
+    # electrical draw determines the lower bound, not the spelling of the name.
+    allowed_settings = {}
+    current_configuration = configuration.copy()
+    for access_point in scenario.access_points:
+        ap_id = access_point.ap_id
+        if ap_id == failed_ap_id:
+            continue
+        baseline = access_point.settings[configuration[ap_id]].electrical_watts
+        allowed_settings[ap_id] = []
+        for name in sorted(access_point.settings):
+            if access_point.settings[name].electrical_watts >= baseline:
+                allowed_settings[ap_id].append(name)
+        current_configuration[ap_id] = access_point.highest_setting
+
+    current_service = assign_users(scenario, current_configuration, critical_ids, failed_ap_id)
+    current_watts = calculate_power(scenario, current_configuration, failed_ap_id)
+    if not current_service.complete:
+        # Keep the better partial assignment for inspection, without claiming a
+        # complete recovery or treating a failed seed as proof of impossibility.
+        if len(current_service.assignments) <= len(unchanged.assignments):
+            current_configuration = configuration.copy()
+            current_service = unchanged
+            current_watts = watts_before
+        changed = []
+        for ap_id in sorted(configuration):
+            if current_configuration[ap_id] != configuration[ap_id]:
+                changed.append(ap_id)
+        history.append(SearchStep(
+            0, current_watts, None, current_watts, False, False,
+            len(current_service.assignments), len(critical_ids), current_configuration.copy(),
+        ))
+        failure = FailureResult(
+            unchanged, current_service, current_configuration.copy(), True, changed,
+            watts_before, current_watts, history,
+        )
+        return RecoverySearchResult(
+            failure, 0, "No feasible all-high recovery seed was found. This is not proof of impossibility."
+        )
+
+    best_configuration = current_configuration.copy()
+    best_service = current_service
+    best_watts = current_watts
+    temperature = settings.initial_temperature_watts
+    rng = Random(settings.seed)
+    steps = 0
+    eligible_ids = []
+    for ap_id in sorted(allowed_settings):
+        if len(allowed_settings[ap_id]) > 1:
+            eligible_ids.append(ap_id)
+    history.append(SearchStep(
+        0, current_watts, best_watts, current_watts, True, True,
+        len(current_service.assignments), len(critical_ids), current_configuration.copy(), temperature,
+    ))
+
+    while eligible_ids and steps < settings.max_steps and temperature > settings.minimum_temperature_watts:
+        ap_id = rng.choice(eligible_ids)
+        alternatives = []
+        for name in allowed_settings[ap_id]:
+            if name != current_configuration[ap_id]:
+                alternatives.append(name)
+        candidate = current_configuration.copy()
+        candidate[ap_id] = rng.choice(alternatives)
+        service = assign_users(scenario, candidate, critical_ids, failed_ap_id)
+        watts = calculate_power(scenario, candidate, failed_ap_id)
+        accepted = False
+        if service.complete:
+            delta = watts - current_watts
+            accepted = delta <= 0
+            if delta > 0:
+                accepted = rng.random() < exp(-delta / temperature)
+            if accepted:
+                current_configuration = candidate.copy()
+                current_service = service
+                current_watts = watts
+                if current_watts < best_watts:
+                    best_configuration = current_configuration.copy()
+                    best_service = current_service
+                    best_watts = current_watts
+        steps += 1
+        history.append(SearchStep(
+            steps, current_watts, best_watts, watts, accepted, service.complete,
+            len(service.assignments), len(critical_ids), current_configuration.copy(), temperature,
+        ))
+        temperature *= settings.cooling_rate
+
+    changed = []
+    for ap_id in sorted(configuration):
+        if ap_id != failed_ap_id and best_configuration[ap_id] != configuration[ap_id]:
+            changed.append(ap_id)
+    # Recheck the returned best, which may differ from the last accepted current.
+    best_service = assign_users(scenario, best_configuration, critical_ids, failed_ap_id)
+    failure = FailureResult(
+        unchanged, best_service, best_configuration.copy(), True, changed,
+        watts_before, best_watts, history, steps,
+    )
+    return RecoverySearchResult(
+        failure, steps, "Recovery annealing returned its best complete plan; global optimality is not guaranteed."
     )

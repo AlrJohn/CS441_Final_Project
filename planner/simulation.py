@@ -11,6 +11,7 @@ requested device IDs, and failed AP IDs so mistakes do not silently pass.
 
 from .models import (
     Configuration, Evaluation, FailurePolicy, FailureResult, Scenario, ServiceResult,
+    SearchStep,
 )
 
 
@@ -281,6 +282,13 @@ def recover_service(
     watts_before = calculate_power(scenario, configuration, failed_ap_id)
     current_watts = watts_before
     recovery_attempted = not unchanged_service.complete
+    trials = 0
+    history = [SearchStep(
+        0, current_watts, current_watts if current_service.complete else None,
+        current_watts, True, current_service.complete,
+        len(current_service.assignments), len(critical_user_ids),
+        recovered_configuration.copy(),
+    )]
 
     # Step 2: Test one surviving AP setting change at a time.
     while not current_service.complete:
@@ -307,6 +315,7 @@ def recover_service(
                 trial_service = assign_users(
                     scenario, trial_configuration, critical_user_ids, failed_ap_id
                 )
+                trials += 1
 
                 additional_served = (
                     len(trial_service.assignments) - len(current_service.assignments)
@@ -337,6 +346,12 @@ def recover_service(
         recovered_configuration = best_configuration
         current_service = best_service
         current_watts = best_watts
+        history.append(SearchStep(
+            trials, current_watts, current_watts if current_service.complete else None,
+            current_watts, True, current_service.complete,
+            len(current_service.assignments), len(critical_user_ids),
+            recovered_configuration.copy(),
+        ))
 
     changed_ap_ids = []
     for ap_id in sorted(configuration):
@@ -351,6 +366,8 @@ def recover_service(
         changed_ap_ids=changed_ap_ids,
         surviving_watts_before=watts_before,
         surviving_watts_after=current_watts,
+        history=history,
+        trials=trials,
     )
 
 

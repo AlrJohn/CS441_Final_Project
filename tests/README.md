@@ -1,22 +1,22 @@
-# Simulation/search tests and remaining checks
+# Simulation, search, loader, and UI tests
 
-`test_simulation.py` and `test_search.py` exercise the working simulation and
-configuration searches using standard-library `unittest`. From the repository root:
+All tests use `unittest`; UI checks additionally require the installed app
+dependencies. Tested on Python 3.12.14. From the repository root:
 
 ```powershell
-python -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-There are 48 tests. The 27 simulation tests check assignments, capacities,
+There are **71 tests** as of November 16, 2026. The 27 simulation tests check assignments, capacities,
 fractional Mbps, input preservation,
 independent failures, watts/Wh, and recovery behavior. Forty seeded tiny cases
 compare the assignment checker's maximum count with exhaustive enumeration.
 One known-limitation case shows greedy recovery missing a feasible two-change
 combination; the test passes when that limitation is reported honestly.
 
-The JSON reader in the test file is fixture setup only, allowing tests to run
-without the production loader, UI, or third-party dependencies. It assumes the
-known test JSON schema; it does not replace full scenario validation.
+The JSON reader in the simulation test file is independent fixture setup.
+Production loading/validation now exists in `planner/scenarios.py` and has its
+own tests; the fixture helper does not replace that validator.
 
 The 21 search tests add greedy feasibility, seeded neighbors and annealing,
 best/current separation, rejection bookkeeping, invalid parameter handling, and
@@ -25,8 +25,23 @@ branches; real simulation evaluations still determine service and energy.
 The seeded toy annealing run is compared with all eight possible ON configurations
 under each service policy. This proves a minimum for that fixture only.
 
-Loader validation, experiments, and UI checks still need implementation as those
-modules become functional. The following cases document the tested core behavior.
+The 10 recovery/comparison tests check recovery annealing against tiny
+enumeration, the greedy combination limitation, failed recovery, recovery power
+bounds, input preservation, seeded reproducibility, accepted worse moves without
+losing best, invalid controls, comparison CSV, and repeated normal experiments.
+
+The 7 loader tests exercise all four examples, exact schema checks, duplicate IDs,
+invalid numbers, coverage references, highest settings, critical flags, and
+fractional/zero capacity cases. Legitimately infeasible scenarios remain valid inputs.
+
+The 6 Streamlit `AppTest` checks use actual algorithms: initial preview, toy
+planning/recovery, the combination challenge, unreachable critical service,
+changed-control warnings, and scenario-result invalidation. They skip if
+Streamlit is not installed. Real-browser checks additionally verified uploads,
+CSV download, recovery-method selection, replay, and chart/map readability.
+
+Full repeated-seed performance evaluation remains future work. The following
+cases document the tested core behavior.
 
 The synthetic toy example uses `demand_mbps` values 3, 2, 1, and 1 for C1, C2,
 U1, and U2. Every AP has 5 Mbps modeled usable capacity at either setting.

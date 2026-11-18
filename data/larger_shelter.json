@@ -1,0 +1,239 @@
+{
+  "scenario_id": "larger_shelter",
+  "description": "Synthetic five-AP, ten-device shelter. Normal demands differ in Mbps. Low settings reach local groups; high settings have broader declared reach. Capacity is unchanged across levels. All inputs are invented and are not a radio-propagation or hardware measurement.",
+  "interval_hours": 2,
+  "users": [
+    {
+      "user_id": "C1",
+      "x": 1,
+      "y": 2,
+      "critical": true,
+      "demand_mbps": 3
+    },
+    {
+      "user_id": "C2",
+      "x": 4,
+      "y": 2,
+      "critical": true,
+      "demand_mbps": 2
+    },
+    {
+      "user_id": "C3",
+      "x": 7,
+      "y": 2,
+      "critical": true,
+      "demand_mbps": 2
+    },
+    {
+      "user_id": "C4",
+      "x": 10,
+      "y": 2,
+      "critical": true,
+      "demand_mbps": 3
+    },
+    {
+      "user_id": "U1",
+      "x": 0,
+      "y": 0,
+      "critical": false,
+      "demand_mbps": 1
+    },
+    {
+      "user_id": "U2",
+      "x": 2,
+      "y": 0,
+      "critical": false,
+      "demand_mbps": 2
+    },
+    {
+      "user_id": "U3",
+      "x": 4,
+      "y": 0,
+      "critical": false,
+      "demand_mbps": 1
+    },
+    {
+      "user_id": "U4",
+      "x": 7,
+      "y": 0,
+      "critical": false,
+      "demand_mbps": 2
+    },
+    {
+      "user_id": "U5",
+      "x": 10,
+      "y": 0,
+      "critical": false,
+      "demand_mbps": 1
+    },
+    {
+      "user_id": "U6",
+      "x": 5,
+      "y": 5,
+      "critical": false,
+      "demand_mbps": 2
+    }
+  ],
+  "access_points": [
+    {
+      "ap_id": "AP1",
+      "x": 1,
+      "y": 1,
+      "highest_setting": "high",
+      "settings": {
+        "low": {
+          "electrical_watts": 4,
+          "capacity_mbps": 6,
+          "covered_user_ids": [
+            "C1",
+            "U1",
+            "U2"
+          ]
+        },
+        "high": {
+          "electrical_watts": 8,
+          "capacity_mbps": 6,
+          "covered_user_ids": [
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "U1",
+            "U2",
+            "U3",
+            "U4",
+            "U5",
+            "U6"
+          ]
+        }
+      }
+    },
+    {
+      "ap_id": "AP2",
+      "x": 4,
+      "y": 1,
+      "highest_setting": "high",
+      "settings": {
+        "low": {
+          "electrical_watts": 4,
+          "capacity_mbps": 6,
+          "covered_user_ids": [
+            "C2",
+            "U3"
+          ]
+        },
+        "high": {
+          "electrical_watts": 9,
+          "capacity_mbps": 6,
+          "covered_user_ids": [
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "U1",
+            "U2",
+            "U3",
+            "U4",
+            "U5",
+            "U6"
+          ]
+        }
+      }
+    },
+    {
+      "ap_id": "AP3",
+      "x": 7,
+      "y": 1,
+      "highest_setting": "high",
+      "settings": {
+        "low": {
+          "electrical_watts": 4,
+          "capacity_mbps": 6,
+          "covered_user_ids": [
+            "C3",
+            "U4"
+          ]
+        },
+        "high": {
+          "electrical_watts": 8,
+          "capacity_mbps": 6,
+          "covered_user_ids": [
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "U1",
+            "U2",
+            "U3",
+            "U4",
+            "U5",
+            "U6"
+          ]
+        }
+      }
+    },
+    {
+      "ap_id": "AP4",
+      "x": 10,
+      "y": 1,
+      "highest_setting": "high",
+      "settings": {
+        "low": {
+          "electrical_watts": 4,
+          "capacity_mbps": 6,
+          "covered_user_ids": [
+            "C4",
+            "U5"
+          ]
+        },
+        "high": {
+          "electrical_watts": 9,
+          "capacity_mbps": 6,
+          "covered_user_ids": [
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "U1",
+            "U2",
+            "U3",
+            "U4",
+            "U5",
+            "U6"
+          ]
+        }
+      }
+    },
+    {
+      "ap_id": "AP5",
+      "x": 5,
+      "y": 4,
+      "highest_setting": "high",
+      "settings": {
+        "low": {
+          "electrical_watts": 4,
+          "capacity_mbps": 6,
+          "covered_user_ids": [
+            "U6"
+          ]
+        },
+        "high": {
+          "electrical_watts": 8,
+          "capacity_mbps": 6,
+          "covered_user_ids": [
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "U1",
+            "U2",
+            "U3",
+            "U4",
+            "U5",
+            "U6"
+          ]
+        }
+      }
+    }
+  ]
+}
