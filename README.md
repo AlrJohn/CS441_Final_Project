@@ -12,6 +12,8 @@ annealing recovery, JSON loading/validation, comparisons, plots, and the Streaml
 workflow are connected. No core module remains a pseudocode stub. The next stage
 is broader evaluation and refinement, not adding HMM/RL features.
 
+For the planning rules and graph counters, see [the explanation guide](docs/planning-and-search-guide.md).
+
 See [the session report](docs/session-report-2026-11-16.md) for implementation
 details, checked outcomes, limitations, and next steps.
 
@@ -33,8 +35,8 @@ pinned in `requirements.txt`; algorithms use the standard library.
 
 1. Choose a scenario or upload matching JSON. **Inputs & model** shows demands,
    settings, declared coverage, and assumptions.
-2. Under **Normal planning**, run all-high, greedy, and simulated annealing.
-   Select a normal plan to inspect its assignments/settings.
+2. Under **Normal planning**, compare all-high, greedy, and simulated annealing
+   using normal service only. Select a plan to inspect its assignments/settings.
 3. Under **Failure & recovery**, select one failed AP and run the comparison.
    Unchanged reassignment, greedy recovery, and annealing recovery all receive
    the same original normal plan.
@@ -86,12 +88,12 @@ Normal planning minimizes **Wh over the scenario's interval**:
 - Greedy takes the largest single-AP energy reduction preserving every normal
   device. It is a `normal_only` baseline.
 - Annealing changes one AP at a time, sometimes accepts higher-energy feasible
-  plans, and keeps its best separately. It supports `normal_only`, `fixed_settings`,
-  and `recovery`; the checked policy appears beside each result.
+  plans, and keeps its best separately.
 
-Choose **Normal service only** for an energy comparison under equal requirements.
-Stronger-policy runs impose extra checks; energy differences do not automatically
-show that one algorithm is better.
+The app compares all three methods under **normal service only**. No candidate
+normal plan is screened against future failures. Select a plan, then use the
+second tab to fail an AP and compare recovery. Recovery-specific temperature
+controls also live on that second tab.
 
 Recovery compares **surviving operating W**, with no assumed outage duration:
 
@@ -101,10 +103,11 @@ Recovery compares **surviving operating W**, with no assumed outage duration:
 - Annealing: tries unchanged reassignment, verifies an all-high survivor seed,
   then searches complete recovery configurations for fewer watts.
 
-Normal annealing's `recovery` screen still uses **greedy recovery**. Recovery
-annealing runs separately on the selected final normal plan, not inside another
-annealing loop. A plan rejected by the greedy screen could be recoverable by
-another method. The UI states this distinction.
+The Python search/experiment API retains `fixed_settings` and `recovery`
+policies for separate experiments, outside the app workflow. Those modes are not
+available in the normal-planning interface. The experimental `recovery` policy
+uses greedy recovery screening; the app's recovery tab compares both recovery
+methods independently from the selected normal plan.
 
 Neither heuristic guarantees a global optimum. A failed all-high seed is not
 proof of impossibility for arbitrary non-nested settings. Incomplete low-watt
@@ -166,8 +169,8 @@ interpretation and the final presentation.
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-**71 tests pass:** 27 simulation, 21 normal-search, 10 recovery/comparison,
-7 loader, and 6 Streamlit interaction tests. UI tests skip without Streamlit;
+**73 tests pass:** 27 simulation, 21 normal-search, 10 recovery/comparison,
+7 loader, and 8 Streamlit interaction tests. UI tests skip without Streamlit;
 core tests use the standard library. See [test notes](tests/README.md).
 
 `compare_planning()` and `compare_recovery()` produce real comparisons and CSV.

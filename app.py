@@ -26,11 +26,6 @@ EXAMPLES = {
     "Recovery combination challenge": "recovery_challenge.json",
     "Unreachable critical device": "unreachable_critical.json",
 }
-POLICIES = {
-    "Allow recovery changes": "recovery",
-    "Keep survivor settings fixed": "fixed_settings",
-    "Normal service only": "normal_only",
-}
 
 
 def _settings_table(scenario, configuration, service, failed_ap_id=None):
@@ -53,31 +48,40 @@ def _settings_table(scenario, configuration, service, failed_ap_id=None):
     return rows
 
 
-def _show_trace(st, scenario, history, unit, key, failed_ap_id=None):
+def _show_trace(st, scenario, history, unit, key, failed_ap_id=None,
+                selected_changes_only=False, total_trials=None):
     """Display the measured trajectory, replay current states, and export full events."""
     from planner.visuals import plot_layout, plot_trace
 
     if not history:
-        st.info("This reference has no iterative search trace.")
+        st.info("The all-high reference uses maximum settings without searching for alternatives.")
         return
-    st.pyplot(plot_trace(history, unit))
-    st.caption("Greedy records committed changes. Annealing records every proposal; rejected proposals keep the current plan.")
+    st.pyplot(plot_trace(history, unit, selected_changes_only, total_trials))
     index = len(history) - 1
     if len(history) > 1:
-        index = st.slider("Replay recorded state", 0, len(history) - 1, index, key=f"{key}_frame")
+        index = st.slider("Replay step", 0, len(history) - 1, index, key=f"{key}_frame")
     event = history[index]
     required_ids = set()
     for user in scenario.users:
         if failed_ap_id is None or user.critical:
             required_ids.add(user.user_id)
     service = assign_users(scenario, event.configuration, required_ids, failed_ap_id)
-    st.caption(f"Recorded event {index} · trial {event.step} · current objective {event.current_value:g} {unit}")
+    cost_label = "Normal energy" if unit == "Wh" else "Surviving AP power"
+    st.caption(f"Setting changes tested: {event.step}. {cost_label}: {event.current_value:g} {unit}.")
     st.pyplot(plot_layout(scenario, event.configuration, service, failed_ap_id))
     events = []
     for item in history:
-        record = asdict(item)
-        record["configuration"] = json.dumps(record["configuration"], sort_keys=True)
-        events.append(record)
+        events.append({
+            "Changes tested": item.step,
+            f"Current plan ({unit})": item.current_value,
+            f"Best plan ({unit})": item.best_value,
+            f"Tested change ({unit})": item.candidate_value,
+            "Change accepted": item.accepted,
+            "Tested change meets requirement": item.feasible,
+            "Tested change: devices served": f"{item.served_count}/{item.required_count}",
+            "Current AP settings": json.dumps(item.configuration, sort_keys=True),
+            "Temperature": item.temperature,
+        })
     st.dataframe(events, hide_index=True)
     st.download_button("Download search trace", results_to_csv([asdict(item) for item in history]),
                        file_name=f"{key}_trace.csv", mime="text/csv", key=f"{key}_download")
@@ -120,15 +124,14 @@ def main() -> None:
         selected_example = st.selectbox("Shelter scenario", list(EXAMPLES) + ["Upload JSON"])
         uploaded = st.file_uploader("Scenario JSON", type=["json"]) if selected_example == "Upload JSON" else None
         seed = st.number_input("Random seed", min_value=0, max_value=999999, value=441, step=1)
-        proposals = st.slider("Search proposals", 50, 1500, 300, step=50)
-        policy_name = st.selectbox("Normal planning requirement", list(POLICIES))
+        proposals = st.slider(
+            "Annealing change limit", 50, 1500, 300, step=50,
+            help="Maximum AP setting changes to test in each annealing run. The search may stop earlier as it cools.",
+        )
         with st.expander("Annealing parameters"):
             normal_temperature = st.number_input("Normal start temperature (Wh)", min_value=0.02, value=5.0)
-            recovery_temperature = st.number_input("Recovery start temperature (W)", min_value=0.02, value=5.0)
             minimum = st.number_input("Minimum temperature", min_value=0.0001, value=0.01, format="%.4f")
             cooling = st.number_input("Cooling rate", min_value=0.5, max_value=0.9999, value=0.99, format="%.4f")
-            st.caption("Temperatures follow each objective's units: Wh for normal planning, W for recovery.")
-        st.caption("Normal energy uses the scenario's time interval. Recovery compares operating watts, without assuming an outage duration.")
 
     try:
         if selected_example == "Upload JSON":
@@ -144,8 +147,8 @@ def main() -> None:
         # The exact assignment checker is intended for small interactive cases.
         if len(scenario.access_points) > 8 or len(scenario.users) > 16:
             raise ValueError("Interactive examples support up to 8 APs and 16 devices; the exact checker can become expensive.")
-        if normal_temperature <= minimum or recovery_temperature <= minimum:
-            raise ValueError("Each starting temperature must be greater than the minimum.")
+        if normal_temperature <= minimum:
+            raise ValueError("Normal starting temperature must be greater than the minimum.")
     except (OSError, ValueError, TypeError, UnicodeError) as error:
         st.error(f"Cannot run these inputs: {error}")
         return
@@ -156,8 +159,7 @@ def main() -> None:
         st.session_state.pop("planning", None)
         st.session_state.pop("recovery", None)
     settings = AnnealingSettings(normal_temperature, minimum, cooling, proposals, seed)
-    recovery_settings = RecoveryAnnealingSettings(recovery_temperature, minimum, cooling, proposals, seed)
-    planning_key = (scenario_key, tuple(asdict(settings).values()), POLICIES[policy_name])
+    planning_key = (scenario_key, tuple(asdict(settings).values()))
 
     columns = st.columns(3)
     columns[0].metric("Installed APs · all on", len(scenario.access_points))
@@ -167,11 +169,11 @@ def main() -> None:
 
     with normal_tab:
         st.subheader("Choose an energy-efficient normal plan")
-        st.caption("Greedy preserves normal service. Annealing also enforces the chosen planning requirement; "
-                   "its recovery screening uses the fast greedy checker. Recovery annealing is compared separately below.")
         if st.button("Run planning comparison", type="primary", key="run_planning"):
             with st.spinner("Comparing reference, greedy, and annealing plans…"):
-                runs = compare_planning(scenario, settings, POLICIES[policy_name])
+                # Every normal planner checks the same rule: serve all devices.
+                # Failures and recovery are evaluated later on the second tab.
+                runs = compare_planning(scenario, settings, failure_policy="normal_only")
             st.session_state["planning"] = {"key": planning_key, "runs": runs}
             st.session_state.pop("recovery", None)
             st.session_state.pop("selected_normal", None)
@@ -193,9 +195,8 @@ def main() -> None:
             display_rows = []
             for row in rows:
                 display_rows.append({"Method": row["method"], "Normal Wh": row["energy_wh"],
-                                     "Served": f"{row['normal_served']}/{row['normal_total']}",
-                                     "Checked policy": row["policy"], "Policy passed": row["policy_passed"],
-                                     "Trials": row["trials"], "Runtime ms": round(row["runtime_seconds"] * 1000, 2)})
+                                     "Served": f"{row['normal_served']}/{row['normal_total']}" if row["normal_served"] is not None else "No plan",
+                                     "Changes tested": row["trials"], "Runtime ms": round(row["runtime_seconds"] * 1000, 2)})
             st.dataframe(display_rows, hide_index=True)
             valid_runs = {}
             for run in runs:
@@ -212,9 +213,9 @@ def main() -> None:
                                                        "result": selected, "planning_key": planning["key"]}
                 st.pyplot(plot_layout(scenario, selected.configuration, selected.evaluation.normal))
                 st.dataframe(_settings_table(scenario, selected.configuration, selected.evaluation.normal), hide_index=True)
-                st.caption(selected.message)
                 with st.expander("Inspect normal search steps"):
-                    _show_trace(st, scenario, selected.history, "Wh", f"normal_{selected_method}")
+                    _show_trace(st, scenario, selected.history, "Wh", f"normal_{selected_method}",
+                                selected_changes_only=selected_method == "Greedy", total_trials=selected.steps)
             st.download_button("Download planning comparison", results_to_csv(rows),
                                file_name="planning_comparison.csv", mime="text/csv")
 
@@ -227,12 +228,18 @@ def main() -> None:
             st.info("This scenario has no AP to fail.")
         else:
             normal_plan = selected_normal["result"].configuration
-            st.write(f"Testing the **{selected_normal['method']}** normal plan. The same plan is supplied to both recovery algorithms.")
+            st.write(f"Normal plan: **{selected_normal['method']}**")
             ap_ids = sorted(normal_plan)
             default_ap = ap_ids.index("F") if "F" in ap_ids else 0
             failed_ap = st.selectbox("Failed AP", ap_ids, index=default_ap, key="failed_ap")
+            with st.expander("Recovery search settings"):
+                recovery_temperature = st.number_input("Recovery start temperature (W)", min_value=0.02, value=5.0)
+            recovery_settings = RecoveryAnnealingSettings(recovery_temperature, minimum, cooling, proposals, seed)
+            recovery_controls_valid = recovery_temperature > minimum
+            if not recovery_controls_valid:
+                st.error("Recovery starting temperature must be greater than the minimum temperature.")
             recovery_key = (planning_key, selected_normal["method"], failed_ap, tuple(asdict(recovery_settings).values()))
-            if st.button("Compare recovery methods", type="primary", key="run_recovery"):
+            if st.button("Compare recovery methods", type="primary", key="run_recovery", disabled=not recovery_controls_valid):
                 with st.spinner("Trying reassignment, greedy recovery, and annealing recovery…"):
                     recovery_runs = compare_recovery(scenario, normal_plan, failed_ap, recovery_settings)
                 st.session_state["recovery"] = {"key": recovery_key, "runs": recovery_runs}
@@ -247,10 +254,8 @@ def main() -> None:
                                "Critical served": f"{row['critical_served']}/{row['critical_total']}",
                                "Complete": row["complete"], "Surviving W": row["surviving_watts"],
                                "Extra W": row["extra_watts"], "Changed APs": ", ".join(row["changed_aps"]) or "None",
-                               "Trials": row["trials"], "Runtime ms": round(row["runtime_seconds"] * 1000, 2)}
+                               "Changes tested": row["trials"], "Runtime ms": round(row["runtime_seconds"] * 1000, 2)}
                               for row in rows], hide_index=True)
-                st.caption("Partial recovery bars are marked. Lower power is only a useful solution when all critical devices are served. "
-                           "Gray guests on failure maps are not required by this check.")
                 method_names = [run["method"] for run in recovery_runs]
                 detail_method = st.radio("Inspect recovery method", method_names, index=2, horizontal=True, key="recovery_detail")
                 detail = recovery_runs[method_names.index(detail_method)]["result"]
@@ -259,11 +264,11 @@ def main() -> None:
                     st.success("All critical devices are serviceable in this outcome.")
                 else:
                     st.warning("Critical devices still unserved: " + ", ".join(failure.final.unserved_user_ids))
-                st.write(detail.message)
                 st.pyplot(plot_layout(scenario, failure.configuration, failure.final, failed_ap))
                 st.dataframe(_settings_table(scenario, failure.configuration, failure.final, failed_ap), hide_index=True)
                 with st.expander("Inspect recovery search steps"):
-                    _show_trace(st, scenario, failure.history, "W", f"recovery_{detail_method}", failed_ap)
+                    _show_trace(st, scenario, failure.history, "W", f"recovery_{detail_method}", failed_ap,
+                                selected_changes_only=detail_method == "Greedy recovery", total_trials=detail.steps)
                 export_rows = []
                 for row in rows:
                     export_rows.append({**row, "scenario_id": scenario.scenario_id,

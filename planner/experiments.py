@@ -15,12 +15,13 @@ from .search import all_high_configuration, greedy, simulated_annealing, simulat
 from .simulation import assign_users, calculate_power, evaluate_configuration, recover_service
 
 
-def compare_planning(scenario, settings, failure_policy="recovery"):
+def compare_planning(scenario, settings, failure_policy="normal_only"):
     """Run the reference and both normal planners once; record actual wall time.
 
-    Greedy remains the normal-only baseline. The chosen failure policy applies
-    to annealing and the all-high reference. Rechecking final outcomes for reports
-    happens outside solver timing. A reference with incomplete service is retained.
+    The app uses normal_only for every method, then compares recovery on the
+    failure tab. Explicit failure policies remain available for separate Python
+    experiments; they apply to annealing and the reference, while greedy remains
+    normal-only. A reference with incomplete service is retained.
     """
     runs = []
     start = all_high_configuration(scenario)

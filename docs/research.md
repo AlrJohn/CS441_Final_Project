@@ -61,13 +61,15 @@ the result demonstrates the complete recovery workflow, not that stochastic
 search was needed to discover this particular combination. A failed all-high
 seed is also not a proof of impossibility for arbitrary non-nested settings.
 
-Normal annealing still uses greedy recovery for its `recovery` feasibility
-screen. Recovery annealing is compared separately on selected final plans;
-there is no annealing loop inside another annealing loop. Consequently a normal
-plan rejected by the greedy screen might be recoverable by the separate method.
-Use `normal_only` for an equal-normal-service energy comparison, and describe
-stronger-policy runs separately rather than attributing every energy difference
-to algorithm quality. Repeated-seed and varied-scenario evaluation is still needed.
+As of November 18, the app separates normal planning from failure recovery.
+Every normal method checks only normal service. The second tab fails a selected
+AP and compares unchanged reassignment, greedy recovery, and annealing recovery.
+The app does not screen normal candidates against hypothetical future failures.
+
+The Python API retains explicit `fixed_settings` and `recovery` policies for
+separate experiments. The latter uses greedy recovery screening, so those
+experimental policies should be described separately from the app workflow.
+Repeated-seed and varied-scenario evaluation is still needed.
 
 When writing the report, keep the model limitations explicit: synthetic inputs,
 assumed working upstream connection, fixed AP sites, and no packet-level or

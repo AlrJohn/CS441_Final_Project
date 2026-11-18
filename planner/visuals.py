@@ -3,6 +3,7 @@
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.transforms import Bbox
+from matplotlib.ticker import MaxNLocator
 
 from .models import Configuration, Scenario, SearchStep, ServiceResult
 
@@ -124,22 +125,46 @@ def plot_layout(scenario: Scenario, configuration: Configuration, service: Servi
     return figure
 
 
-def plot_trace(history: list[SearchStep], unit: str) -> Figure:
-    """Plot current and best complete objective values, with rejected trials visible."""
+def plot_trace(history: list[SearchStep], unit: str, selected_changes_only=False,
+               total_trials=None) -> Figure:
+    """Show tested setting changes against energy or surviving power.
+
+    Greedy saves selected plans after each round of tests, so its markers are
+    checkpoints. Hold that plan between checkpoints, including any final tests
+    that found no improvement. Annealing records the current state after every
+    proposed change and keeps its best passing plan separately.
+    """
     figure = Figure(figsize=(8, 3), layout="constrained")
     axes = figure.subplots()
-    axes.plot([item.step for item in history], [item.current_value for item in history],
-              color="#668caf", linewidth=1, label="Current")
-    axes.plot([item.step for item in history],
-              [item.best_value if item.best_value is not None else float("nan") for item in history],
-              color="#0c8879", linewidth=2, label="Best complete plan")
-    rejected = [item for item in history if not item.accepted]
-    axes.scatter([item.step for item in rejected], [item.candidate_value for item in rejected],
-                 marker="x", color="#c48b49", s=12, alpha=0.5, label="Rejected proposal")
-    axes.set_xlabel("Evaluated proposals (greedy: committed-change checkpoints)")
-    axes.set_ylabel(unit)
+    tested = [item.step for item in history]
+    current = [item.current_value for item in history]
+    if selected_changes_only:
+        # Keep markers only at actual saved selections. A flat tail still shows
+        # work done after the last selected change, if the search stalled.
+        line_steps = tested.copy()
+        line_values = current.copy()
+        if tested and total_trials is not None and total_trials > tested[-1]:
+            line_steps.append(total_trials)
+            line_values.append(current[-1])
+        axes.step(line_steps, line_values, where="post", color="#0c8879",
+                  linewidth=2, label="Selected plan")
+        axes.scatter(tested, current, color="#0c8879", s=24, zorder=3)
+    else:
+        axes.plot(tested, current, color="#668caf", linewidth=1, label="Current plan",
+                  marker="o" if len(history) == 1 else None)
+        axes.plot(tested,
+                  [item.best_value if item.best_value is not None else float("nan") for item in history],
+                  color="#0c8879", linewidth=2, label="Best plan found")
+        rejected = [item for item in history if not item.accepted]
+        axes.scatter([item.step for item in rejected], [item.candidate_value for item in rejected],
+                     marker="x", color="#c48b49", s=12, alpha=0.5, label="Rejected change")
+    final_trial = max([1, total_trials or 0] + tested)
+    axes.set_xlim(0, final_trial)
+    axes.xaxis.set_major_locator(MaxNLocator(integer=True))
+    axes.set_xlabel("AP setting changes tested")
+    axes.set_ylabel("Normal energy (Wh)" if unit == "Wh" else "Surviving AP power (W)")
     axes.grid(alpha=0.15)
-    axes.legend(loc="best", fontsize=8)
+    axes.legend(loc="best", fontsize=9)
     return figure
 
 

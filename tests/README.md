@@ -7,7 +7,7 @@ dependencies. Tested on Python 3.12.14. From the repository root:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-There are **71 tests** as of November 16, 2026. The 27 simulation tests check assignments, capacities,
+There are **73 tests** as of November 18, 2026. The 27 simulation tests check assignments, capacities,
 fractional Mbps, input preservation,
 independent failures, watts/Wh, and recovery behavior. Forty seeded tiny cases
 compare the assignment checker's maximum count with exhaustive enumeration.
@@ -34,9 +34,10 @@ The 7 loader tests exercise all four examples, exact schema checks, duplicate ID
 invalid numbers, coverage references, highest settings, critical flags, and
 fractional/zero capacity cases. Legitimately infeasible scenarios remain valid inputs.
 
-The 6 Streamlit `AppTest` checks use actual algorithms: initial preview, toy
+The 8 Streamlit `AppTest` checks use actual algorithms: initial preview, toy
 planning/recovery, the combination challenge, unreachable critical service,
-changed-control warnings, and scenario-result invalidation. They skip if
+changed-control warnings, scenario-result invalidation, normal planning without
+future-failure screening, and independent recovery-temperature controls. They skip if
 Streamlit is not installed. Real-browser checks additionally verified uploads,
 CSV download, recovery-method selection, replay, and chart/map readability.
 

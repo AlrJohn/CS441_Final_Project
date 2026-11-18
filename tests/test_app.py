@@ -74,6 +74,38 @@ class AppTests(unittest.TestCase):
         self.assertTrue(any("Planning controls changed" in item.value for item in self.app.warning))
         self.assertFalse(any(item.key == "run_recovery" for item in self.app.button))
 
+    def test_normal_planning_does_not_screen_future_failures(self):
+        """A valid normal plan survives planning even if a later failure is unrecoverable."""
+        widget_by_label(self.app.selectbox, "Shelter scenario").select("Unreachable critical device").run()
+        self.app.button(key="run_planning").click().run()
+        self.assertEqual(len(self.app.exception), 0)
+        runs = self.app.session_state["planning"]["runs"]
+        self.assertEqual(len(runs), 3)
+        for run in runs:
+            result = run["result"]
+            self.assertIsNotNone(result.configuration)
+            self.assertTrue(result.evaluation.normal.complete)
+            self.assertEqual(result.evaluation.failure_policy, "normal_only")
+            self.assertIsNone(result.evaluation.failures)
+        self.assertFalse(any(item.label == "Annealing service requirement" for item in self.app.selectbox))
+        self.assertNotIn("Check performed", self.app.dataframe[0].value.columns)
+        self.app.button(key="run_recovery").click().run()
+        for run in self.app.session_state["recovery"]["runs"]:
+            self.assertFalse(run["result"].failure.final.complete)
+
+    def test_recovery_temperature_does_not_invalidate_normal_planning(self):
+        """Recovery controls affect the failure stage without rerunning normal planning."""
+        self.app.button(key="run_planning").click().run()
+        original_key = self.app.session_state["planning"]["key"]
+        original_plan = self.app.session_state["selected_normal"]["result"].configuration.copy()
+        widget_by_label(self.app.number_input, "Recovery start temperature (W)").set_value(7.0).run()
+        self.assertEqual(len(self.app.exception), 0)
+        self.assertEqual(self.app.session_state["planning"]["key"], original_key)
+        self.assertEqual(self.app.session_state["selected_normal"]["result"].configuration, original_plan)
+        self.assertFalse(self.app.button(key="run_recovery").disabled)
+        self.app.button(key="run_recovery").click().run()
+        self.assertTrue(self.app.session_state["recovery"]["runs"][2]["result"].failure.final.complete)
+
     def test_scenario_switch_clears_previous_results(self):
         """Changing the input scenario cannot reuse a previous shelter's assignments."""
         self.app.button(key="run_planning").click().run()
